@@ -12,11 +12,6 @@ out = pygame.midi.Output(port_out)
 m_in  = pygame.midi.Input(port_in)
 out.set_instrument(0)
 
-def on(key,vel):
-    out.note_on(key,vel)
-def off(key,vel):
-    out.note_off(key,vel)
-
 def send_sysex(address, data): # address[4]
     wdt = [0xF0, 0x41, 0x10, 0x00, 0x00, 0x77, 0x12]
     for a in address:
