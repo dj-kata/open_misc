@@ -31,7 +31,7 @@ def is_hold(ev):
             ret = True
     hold_pre = ev[0][1]
     return ret
-def switch(out, parts): # [1,2,3]を入力すると、1,2,3chがオン、それ以外offになる
+def sw(out, parts): # [1,2,3]を入力すると、1,2,3chがオン、それ以外offになる
     for i in range(2,17):
         if i in parts:
             part_on(out, i)
@@ -47,6 +47,8 @@ class part_switch(object):
         self.mout = pygame.midi.Output(self.port_out)
         self.min  = pygame.midi.Input(self.port_in)
         self.mout.set_instrument(0)
+    def switch(self, parts):
+        sw(self.mout, parts)
     def exe(self):
         # ペダルを踏んだときに実行するメソッド。
         # ここをオーバーライドすればよい。
