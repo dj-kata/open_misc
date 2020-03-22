@@ -31,12 +31,20 @@ def is_hold(ev):
             ret = True
     hold_pre = ev[0][1]
     return ret
-def sw(out, parts): # [1,2,3]を入力すると、1,2,3chがオン、それ以外offになる
+def switch_core(out, parts): # [1,2,3]を入力すると、1,2,3chがオン、それ以外offになる
     for i in range(2,17):
         if i in parts:
             part_on(out, i)
         else:
             part_off(out, i)
+def trans_core(out, tr, val): # tr:track number,  val: -48...48
+    wval = val + 64
+    addr = 0x1F + tr
+    send_sysex(out, [0x18, 0x00, addr, 0x0B], wval)
+def oct_core(out, tr, val): # tr:track number,  val: -3 ... 3
+    wval = val + 64
+    addr = 0x1F + tr
+    send_sysex(out, [0x18, 0x00, addr, 0x1B], wval)
 
 class part_switch(object):
     def __init__(self):
@@ -48,7 +56,11 @@ class part_switch(object):
         self.min  = pygame.midi.Input(self.port_in)
         self.mout.set_instrument(0)
     def switch(self, parts):
-        sw(self.mout, parts)
+        switch_core(self.mout, parts)
+    def trans(self, tr, val):
+        trans_core(self.mout, tr, val)
+    def oct(self, tr, val):
+        oct_core(self.mout, tr, val)
     def exe(self):
         # ペダルを踏んだときに実行するメソッド。
         # ここをオーバーライドすればよい。
