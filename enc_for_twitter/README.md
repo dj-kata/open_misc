@@ -1,7 +1,10 @@
 # このスクリプトについて
 長時間の音ゲープレイ動画に対して、指定した位置からリザルト画面の数秒先までを切り出して出力します。  
 twitterへ動画を投稿する前提として、デフォルトの最大長を140秒としています。  
-Python3(>=3.6)がインストールされたWindows Subsystem for Linux (WSL上で動作します。
+
+# 動作環境
+Python3(>=3.6)がインストールされたWindows Subsystem for Linux (WSL)である前提となっています。
+また、入力ファイルにスペースが含まれていると動かないので注意してください。
 
 # 使い方
 ```./tw_trim.py input.mp4 m:s output.mp4 [sc_idx]```  
