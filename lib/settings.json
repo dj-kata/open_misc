@@ -5,7 +5,10 @@
         "terminal.background": "#000000",
         "terminal.foreground": "#FFFFFF",
     },
-    "workbench.colorTheme": "Slack Theme Hoth",
+    "workbench.colorTheme": "Default Light+",
     "window.zoomLevel": 1,
-    "editor.fontFamily": "\"Ricty Diminished for Powerline\""
+    "editor.fontFamily": "'Fira Code'",
+    "editor.fontSize": 16,
+    "terminal.integrated.fontFamily": "'Ricty Diminished for powerline'",
+    "terminal.integrated.fontSize": 18
 }
