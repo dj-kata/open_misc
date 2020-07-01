@@ -1,0 +1,13 @@
+// 既定値を上書きするには、このファイル内にキー バインドを挿入します
+[
+    {"key": "ctrl+z", "command":"-scrollPageDown"},
+    {"key": "ctrl+a", "command":"cursorHome", "when":"terminalFocus"},
+    {"key": "ctrl+e", "command":"cursorEnd", "when":"terminalFocus"},
+    {"key": "ctrl+p", "command":"cursorUp", "when":"terminalFocus"},
+    {"key": "ctrl+n", "command":"cursorDown", "when":"terminalFocus"},
+    {"key": "ctrl+f", "command":"cursorRight", "when":"terminalFocus"},
+    {"key": "ctrl+b", "command":"cursorLeft", "when":"terminalFocus"},
+    {"key": "ctrl+m", "command":"enter", "when":"terminalFocus"},
+    {"key": "ctrl+;", "command":"workbench.action.terminal.focus", "when":"!terminalFocus"},
+    {"key": "ctrl+;", "command":"workbench.action.focusFirstEditorGroup", "when":"terminalFocus"},
+]
