@@ -12,14 +12,18 @@ FADE_DURATION = 2 # フェード時間
 __doc__ = """{f}
 
 Usage:
-    {f} <input> [-o <output>] [-r | --rm] [--fadeout] [--h264] [-s <start_ts>] [-e <end_ts>]
+    {f} <input> [<output>] [-r | --rm] [--fadein] [--fadeout] [--h264] 
+        [--vbitrate <val>] [--acopy] [-s <start_ts>] [-e <end_ts>]
     {f} -h | --help
 
 Options:
-    -o <OUTPUT_FILE>           use specific output-file-name
+    <OUTPUT_FILE>              use specific output-file-name
+    --fadein                   enable fadein
     --fadeout                  enable fadeout
     -r --rm                    remove inputfile after encoding
     --h264                     use h264_nvenc (default:hevc_nvenc)
+    --vbitrate <val>           set video bitrate(Mbps) (default:10)
+    --acopy                    use the same audio codec settings as input
     -s <START_TS>              set start-point for trimming
     -e <END_TS>                set end-point for trimming
     -h --help                  show this screen and exit.
@@ -30,9 +34,10 @@ if __name__ == '__main__':
     args = docopt(__doc__)
 
     f_in = args['<input>']
-    f_out = f_in+'_trim.mp4'
-    if args['-o']:
-        f_out = args['-o']
+    print(f_in)
+    f_out = f_in+'.mp4'
+    if args['<output>']:
+        f_out = args['<output>']
     st = 0
     if args['-s']:
         dat = list(map(int,args['-s'].split(':')))
@@ -51,11 +56,22 @@ if __name__ == '__main__':
         opt_ss = f' -ss {st}'
     if ed > 0 and ed > st:
         opt += f' -t {ed - st}'
-    opt += " -b:v 10M -b:a 256k -deinterlace"
+    vb = 10 # default
+    if args['--vbitrate']:
+        vb = int(args['--vbitrate'])
+    if args['--acopy']:
+        opt += f" -c:a copy -b:v {vb}M -deinterlace"
+    else:
+        opt += f" -b:a 256k -b:v {vb}M -deinterlace"
+
     if args['--h264']:
         opt += " -c:v h264_nvenc"
     else:
         opt += " -c:v hevc_nvenc -tag:v hvc1"
+    if args['--fadein']:
+        duration = ed - st
+        opt += f' -filter:v "fade=in:st=0:d=1"'
+        opt += f' -filter:a "afade=t=in:st=0:d=1"'
     if args['--fadeout']:
         if ed == 0:
             a = subprocess.check_output([FFPROBE_CMD, f_in, '-show_entries', 'format=duration'], stderr=open('/dev/null', 'w')).decode().split('\n')[1]
@@ -65,6 +81,7 @@ if __name__ == '__main__':
         opt += f' -filter:a "afade=t=out:st={duration-FADE_DURATION}:d={FADE_DURATION}"'
 
     cmd = f'{FFMPEG_CMD} {opt_ss} {opt} {f_out}'
+    print(f'encode command = {cmd}')
     print (cmd)
     os.system(cmd)
 
