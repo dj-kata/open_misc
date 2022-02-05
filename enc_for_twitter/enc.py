@@ -1,14 +1,13 @@
 #!/usr/bin/python3
 # usage: ./cut.py input [opt]
-import re,sys,os,subprocess,math
-from docopt import docopt
+import re,os,subprocess,math
+from absl import app,flags
+FLAGS = flags.FLAGS
 
 #### parameters
 # FFMPEG_CMD = 'ffmpeg'
 FFMPEG_CMD = './ffmpeg.exe' # WSL上でWindows用ffmpegを叩く場合(GPU使いたい人等)
 FFPROBE_CMD = '/usr/bin/ffprobe'
-FADE_DURATION = 2 # フェード時間
-DEFAULT_VBITRATE = 10 # デフォルト: 10Mbps
 
 #### for 音ゲー動画
 MAX_DURATION_TWITTER = 140  # 動画の最大長(s)、twitterだと140
@@ -18,99 +17,90 @@ SC_THRESHOLD = 0.8  # シーンチェンジ判定のしきい値
 
 otoge_duration = 0  # 音ゲーモード時の動画長
 
-__doc__ = """{f}
 
-Usage:
-    {f} <input> [<output>] [-r | --rm] [--fadein] [--fadeout] [--h264] 
-        [--vbitrate <val>] [--acopy] [-s <start_ts>] [-e <end_ts>]
-        [--otoge]
-    {f} -h | --help
+def parse_ts(ts):
+    dat = ts.split(':')
+    ss=0.0;mm=0;hh=0
+    ss = float(dat[-1])
+    if len(dat) > 1:
+        mm = int(dat[-2])*60
+    if len(dat) > 2:
+        hh = int(dat[0])*3600
+    return hh+mm+ss
 
-Options:
-    <OUTPUT_FILE>              use specific output-file-name
-    --fadein                   enable fadein
-    --fadeout                  enable fadeout
-    -r --rm                    remove inputfile after encoding
-    --h264                     use h264_nvenc (default:hevc_nvenc)
-    --vbitrate <val>           set video bitrate(Mbps) (default:10)
-    --acopy                    use the same audio codec settings as input
-    -s <START_TS>              set start-point for trimming
-    -e <END_TS>                set end-point for trimming
-    --otoge                    use setting for oto-game(2pass)
-    -h --help                  show this screen and exit.
-
-""".format(f=__file__)
-
-if __name__ == '__main__':
-    args = docopt(__doc__)
-
-    f_in = args['<input>']
-    print(f_in)
+def main(argv):
+    f_in = argv[1]
     f_out = f_in+'.mp4'
+    if len(argv) > 2:
+        f_out = argv[2]
+    print(f'input:{f_in} output:{f_out}')
 
-    if args['<output>']:
-        f_out = args['<output>']
-    st = 0
-    if args['-s']:
-        dat = list(map(int,args['-s'].split(':')))
-        st = dat[-1]
-        if len(dat) >= 2: st += dat[-2]*60
-        if len(dat) >= 3: st += dat[-3]*3600
-    ed = 0
-    if args['-e']:
-        dat = list(map(int,args['-e'].split(':')))
-        ed = dat[-1]
-        if len(dat) >= 2: ed += dat[-2]*60
-        if len(dat) >= 3: ed += dat[-3]*3600
-    opt_ss = ''
+    st = -1;ed=-1
+    if FLAGS.trim:
+        tmp_s,tmp_e = FLAGS.trim.split('-')
+        st = parse_ts(tmp_s)
+        ed = parse_ts(tmp_e)
+    elif FLAGS.st:
+        st = parse_ts(FLAGS.st)
+    elif FLAGS.ed:
+        ed = parse_ts(FLAGS.ed)
     opt = f'-i {f_in} -hide_banner'
+    opt_fade = ''
     if st > 0:
-        opt_ss = f' -ss {st}'
+        opt = f'-ss {st} {opt}'
     if ed > 0 and ed > st:
-        opt += f' -t {ed - st}'
-    if args['--otoge']:
-        args['--h264'] = True
-        args['--fadeout'] = True
-        args['--fadein'] = True
-        cmd = f'{FFMPEG_CMD} {opt_ss} {opt} -c:v h264_nvenc -t {MAX_DURATION_TWITTER} -filter:v "select=\'gt(scene,{SC_THRESHOLD})\',showinfo" -f null /dev/null'
+        opt += f' -to {ed}'
+    if FLAGS.otoge:
+        cmd = f'{FFMPEG_CMD} {opt} -c:v h264_nvenc -t {MAX_DURATION_TWITTER} -filter:v "select=\'gt(scene,{SC_THRESHOLD})\',showinfo" -f null /dev/null'
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         ###### シーンチェンジ情報を分析
         dat = [l.decode() for l in proc.stderr.readlines() if 'pts_time' in l.decode()]
         sc = [math.ceil(float(re.sub(' .*', '', re.sub('.*pts_time:', '', d)))) for d in dat]
         otoge_duration = min(MAX_DURATION_TWITTER, sc[SC_IDX] + RESULT_DURATION)
+        print (f'otoge mode> detected duration: {otoge_duration}[s]')
 
-    vb = DEFAULT_VBITRATE # default
-    if args['--vbitrate']:
-        vb = int(args['--vbitrate'])
-    if args['--acopy']:
+    vb = FLAGS.vbitrate
+    gain = FLAGS.gain
+    if FLAGS.acopy:
         opt += f" -c:a copy -b:v {vb}M -deinterlace"
     else:
         opt += f" -b:a 256k -b:v {vb}M -deinterlace"
-
-    if args['--h264']:
+    if gain > 0:
+        opt += f' -af volume={gain}dB'
+    if FLAGS.h264 or FLAGS.otoge:
         opt += " -c:v h264_nvenc"
     else:
         opt += " -c:v hevc_nvenc -tag:v hvc1"
-    if args['--fadein']:
-        duration = ed - st
-        opt += f' -filter:v "fade=in:st=0:d=1"'
-        opt += f' -filter:a "afade=t=in:st=0:d=1"'
-    if args['--fadeout']:
-        if ed == 0:
-            a = subprocess.check_output([FFPROBE_CMD, f_in, '-show_entries', 'format=duration'], stderr=open('/dev/null', 'w')).decode().split('\n')[1]
-            ed = float(re.sub('.*=', '', a))
-        duration = ed - st
-        if args['--otoge']:
-            duration = otoge_duration # 1pass目の結果をここで伝える
-            opt += f' -t {duration}'
-            
-        opt += f' -filter:v "fade=out:st={duration-FADE_DURATION}:d={FADE_DURATION}"'
-        opt += f' -filter:a "afade=t=out:st={duration-FADE_DURATION}:d={FADE_DURATION}"'
+    # フェード関係
+    val_fadein = FLAGS.fadein
+    val_fadeout = FLAGS.fadeout
+    if FLAGS.fadein > 0 or FLAGS.otoge:
+        if FLAGS.otoge and FLAGS.fadein == 0:
+            val_fadein = 2
+    if FLAGS.fadeout > 0 or FLAGS.otoge:
+        if FLAGS.otoge and FLAGS.fadeout == 0:
+            val_fadeout = 2
+    opt_fade = f'-vf fade=d={val_fadein},reverse,fade=d={val_fadeout},reverse'
+    #opt_fade = f'-af afade=d={val_fadein},reverse,afade=d={val_fadeout},reverse' # 音声のフェードがうまくできない TODO
 
-    cmd = f'{FFMPEG_CMD} {opt_ss} {opt} {f_out}'
+    cmd = f'{FFMPEG_CMD} {opt} {opt_fade} {f_out}'
     print(f'encode command = {cmd}')
     print (cmd)
     os.system(cmd)
 
-    if args['--rm']:
+    if FLAGS.rm:
         os.system(f'rm -rf {f_in}')
+
+if __name__ == '__main__':
+    flags.DEFINE_float('fadein', 0, 'set a duration for fadein', short_name='i')
+    flags.DEFINE_float('fadeout', 0, 'set a duration for fadeout', short_name='o')
+    flags.DEFINE_bool('rm', False, 'remove inputfile after encoding', short_name='r')
+    flags.DEFINE_bool('h264', False, 'use h264_nvenc (default:nvenc_hevc)')
+    flags.DEFINE_integer('vbitrate', 10, 'set a bitrate for video(Mbps)')
+    flags.DEFINE_float('gain', 0, 'set a value for gaining audio volume', short_name='g')
+    flags.DEFINE_bool('acopy', False, 'use the same audio codes settings as input')
+    flags.DEFINE_string('st', None, 'set start-point for trimming (hh:mm:ss.ms)', short_name='s')
+    flags.DEFINE_string('ed', None, 'set end-point for trimming (hh:mm:ss.ms)', short_name='e')
+    flags.DEFINE_string('trim', None, 'set start and end point for trimming (hh:mm:ss.ms-hh:mm:ss.ms)', short_name='t')
+    flags.DEFINE_bool('otoge', False, 'use the settings for otogame (2pass)')
+    app.run(main)
