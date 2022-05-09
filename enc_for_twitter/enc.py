@@ -5,7 +5,6 @@ from absl import app,flags
 FLAGS = flags.FLAGS
 
 #### parameters
-# FFMPEG_CMD = 'ffmpeg'
 FFMPEG_CMD = './ffmpeg.exe' # WSL上でWindows用ffmpegを叩く場合(GPU使いたい人等)
 FFPROBE_CMD = '/usr/bin/ffprobe'
 
@@ -83,7 +82,8 @@ def main(argv):
     if val_fadeout > 0:
         opt_vf += f',fade=t=out:st={ed-st-val_fadeout}:d={val_fadeout}'
         opt_af += f',afade=t=out:st={ed-st-val_fadeout}:d={val_fadeout}'
-
+    if FLAGS.acopy: # acopyと-afは共存できないため、コピー時は切っておく
+        opt_af = ''
     cmd = f'{FFMPEG_CMD} {opt} {opt_af} {opt_vf} {f_out}'
     print(f'encode command = {cmd}')
     os.system(cmd)
