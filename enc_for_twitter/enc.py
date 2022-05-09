@@ -35,7 +35,7 @@ def main(argv):
         f_out = argv[2]
     print(f'input:{f_in} output:{f_out}')
 
-    st = -1;ed=-1
+    st = 0;ed=-1
     if FLAGS.trim:
         tmp_s,tmp_e = FLAGS.trim.split('-')
         st = parse_ts(tmp_s)
@@ -45,11 +45,11 @@ def main(argv):
     elif FLAGS.ed:
         ed = parse_ts(FLAGS.ed)
     opt = f'-i {f_in} -hide_banner'
-    opt_fade = ''
-    if st > 0:
-        opt = f'-ss {st} {opt}'
+    opt_vf = '-vf yadif=0:-1'
+    opt_af = f' -af volume={FLAGS.gain}dB'
     if ed > 0 and ed > st:
-        opt += f' -to {ed}'
+        opt += f' -t {ed-st}'
+    opt = f'-ss {st} {opt}'
     if FLAGS.otoge:
         cmd = f'{FFMPEG_CMD} {opt} -c:v h264_nvenc -t {MAX_DURATION_TWITTER} -filter:v "select=\'gt(scene,{SC_THRESHOLD})\',showinfo" -f null /dev/null'
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -60,13 +60,10 @@ def main(argv):
         print (f'otoge mode> detected duration: {otoge_duration}[s]')
 
     vb = FLAGS.vbitrate
-    gain = FLAGS.gain
     if FLAGS.acopy:
-        opt += f" -c:a copy -b:v {vb}M -deinterlace"
+        opt += f' -c:a copy -b:v {vb}M'
     else:
-        opt += f" -b:a 256k -b:v {vb}M -deinterlace"
-    if gain > 0:
-        opt += f' -af volume={gain}dB'
+        opt += f' -ab 256k -b:v {vb}M'
     if FLAGS.h264 or FLAGS.otoge:
         opt += " -c:v h264_nvenc"
     else:
@@ -80,20 +77,23 @@ def main(argv):
     if FLAGS.fadeout > 0 or FLAGS.otoge:
         if FLAGS.otoge and FLAGS.fadeout == 0:
             val_fadeout = 2
-    opt_fade = f'-vf fade=d={val_fadein},reverse,fade=d={val_fadeout},reverse'
-    #opt_fade = f'-af afade=d={val_fadein},reverse,afade=d={val_fadeout},reverse' # 音声のフェードがうまくできない TODO
+    if val_fadein > 0:
+        opt_vf += f',fade=t=in:st=0:d={val_fadein}'
+        opt_af += f',afade=t=in:st=0:d={val_fadein}'
+    if val_fadeout > 0:
+        opt_vf += f',fade=t=out:st={ed-st-val_fadeout}:d={val_fadeout}'
+        opt_af += f',afade=t=out:st={ed-st-val_fadeout}:d={val_fadeout}'
 
-    cmd = f'{FFMPEG_CMD} {opt} {opt_fade} {f_out}'
+    cmd = f'{FFMPEG_CMD} {opt} {opt_af} {opt_vf} {f_out}'
     print(f'encode command = {cmd}')
-    print (cmd)
     os.system(cmd)
 
     if FLAGS.rm:
         os.system(f'rm -rf {f_in}')
 
 if __name__ == '__main__':
-    flags.DEFINE_float('fadein', 0, 'set a duration for fadein', short_name='i')
-    flags.DEFINE_float('fadeout', 0, 'set a duration for fadeout', short_name='o')
+    flags.DEFINE_integer('fadein', 0, 'set a duration for fadein', short_name='i')
+    flags.DEFINE_integer('fadeout', 0, 'set a duration for fadeout', short_name='o')
     flags.DEFINE_bool('rm', False, 'remove inputfile after encoding', short_name='r')
     flags.DEFINE_bool('h264', False, 'use h264_nvenc (default:nvenc_hevc)')
     flags.DEFINE_integer('vbitrate', 10, 'set a bitrate for video(Mbps)')
