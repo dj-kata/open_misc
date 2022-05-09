@@ -46,7 +46,7 @@ def main(argv):
     opt = f'-i {f_in} -hide_banner'
     opt_vf = '-vf yadif=0:-1'
     opt_af = f' -af volume={FLAGS.gain}dB'
-    if ed > 0 and ed > st:
+    if not FLAGS.otoge and (ed > 0 and ed > st):
         opt += f' -t {ed-st}'
     opt = f'-ss {st} {opt}'
     if FLAGS.otoge:
@@ -56,6 +56,7 @@ def main(argv):
         dat = [l.decode() for l in proc.stderr.readlines() if 'pts_time' in l.decode()]
         sc = [math.ceil(float(re.sub(' .*', '', re.sub('.*pts_time:', '', d)))) for d in dat]
         otoge_duration = min(MAX_DURATION_TWITTER, sc[SC_IDX] + RESULT_DURATION)
+        opt += f' -t {otoge_duration}'
         print (f'otoge mode> detected duration: {otoge_duration}[s]')
 
     vb = FLAGS.vbitrate
@@ -80,8 +81,12 @@ def main(argv):
         opt_vf += f',fade=t=in:st=0:d={val_fadein}'
         opt_af += f',afade=t=in:st=0:d={val_fadein}'
     if val_fadeout > 0:
-        opt_vf += f',fade=t=out:st={ed-st-val_fadeout}:d={val_fadeout}'
-        opt_af += f',afade=t=out:st={ed-st-val_fadeout}:d={val_fadeout}'
+        if FLAGS.otoge:
+            opt_vf += f',fade=t=out:st={otoge_duration-val_fadeout}:d={val_fadeout}'
+            opt_af += f',afade=t=out:st={otoge_duration-val_fadeout}:d={val_fadeout}'
+        else:
+            opt_vf += f',fade=t=out:st={ed-st-val_fadeout}:d={val_fadeout}'
+            opt_af += f',afade=t=out:st={ed-st-val_fadeout}:d={val_fadeout}'
     if FLAGS.acopy: # acopyと-afは共存できないため、コピー時は切っておく
         opt_af = ''
     cmd = f'{FFMPEG_CMD} {opt} {opt_af} {opt_vf} {f_out}'
