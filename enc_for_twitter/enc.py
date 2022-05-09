@@ -63,7 +63,7 @@ def main(argv):
     if FLAGS.acopy:
         opt += f' -c:a copy -b:v {vb}M'
     else:
-        opt += f' -ab 256k -b:v {vb}M'
+        opt += f' -b:a 256k -b:v {vb}M'
     if FLAGS.h264 or FLAGS.otoge:
         opt += " -c:v h264_nvenc"
     else:
